@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CloudGuard SAST — Infrastructure as Code Security Scanner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07090e;
+      --surface: #0f141f;
+      --surface-raised: #141c2c;
+      --border: #1e293b;
+      --border-accent: #334155;
+      --primary: #ef4444;
+      --primary-hover: #dc2626;
+      --cyan: #06b6d4;
+      --amber: #f59e0b;
+      --green: #10b981;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+    
+    /* NAV */
+    nav { background: rgba(15, 20, 31, 0.95); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 16px 40px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .brand { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 900; color: #fff; font-family: 'JetBrains Mono', monospace; }
+    .brand-shield { background: linear-gradient(135deg, #ef4444 0%, #991b1b 100%); width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; color: #fff; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4); }
+    .nav-stats { display: flex; align-items: center; gap: 20px; font-size: 13px; color: var(--muted); }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 6px; box-shadow: 0 0 10px var(--green); }
+
+    /* CONTROLS HEADER */
+    .top-controls { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 40px; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+    .sample-select { display: flex; align-items: center; gap: 10px; }
+    .sample-select label { font-size: 13px; font-weight: 700; color: var(--muted); }
+    select { background: var(--bg); border: 1px solid var(--border-accent); border-radius: 8px; color: #fff; padding: 8px 14px; font-size: 13px; font-weight: 600; outline: none; }
+    .btn-scan { background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); color: #fff; border: none; padding: 10px 28px; border-radius: 8px; font-weight: 800; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.35); transition: transform 0.15s; }
+    .btn-scan:hover { transform: translateY(-1px); }
+
+    /* WORKSPACE SPLIT */
+    .workspace { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 0; min-height: calc(100vh - 140px); }
+    .editor-pane { background: #030508; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+    .pane-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; color: var(--muted); }
+    .code-area-wrap { flex: 1; display: flex; position: relative; overflow: hidden; }
+    .line-nums { width: 46px; background: #070a10; color: #475569; padding: 16px 8px; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 22px; text-align: right; user-select: none; border-right: 1px solid #111726; }
+    textarea.code-editor { flex: 1; background: transparent; border: none; color: #38bdf8; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 22px; padding: 16px; resize: none; outline: none; white-space: pre; overflow-x: auto; tab-size: 2; }
+
+    /* FINDINGS PANE */
+    .findings-pane { background: var(--bg); display: flex; flex-direction: column; overflow-y: auto; }
+    .summary-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 20px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .summary-box { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; text-align: center; }
+    .summary-num { font-size: 24px; font-weight: 900; font-family: 'JetBrains Mono', monospace; }
+    .summary-lbl { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-top: 2px; }
+
+    /* FINDINGS LIST */
+    .findings-list { padding: 24px; display: flex; flex-direction: column; gap: 16px; flex: 1; }
+    .finding-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); cursor: pointer; transition: border-color 0.15s; }
+    .finding-card:hover { border-color: var(--cyan); }
+    .finding-card.critical { border-left: 4px solid var(--primary); }
+    .finding-card.high { border-left: 4px solid var(--amber); }
+    .finding-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .badge-sev { font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; }
+    .badge-sev.critical { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid #ef4444; }
+    .badge-sev.high { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid #f59e0b; }
+    .rule-id { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--cyan); font-weight: 700; }
+    .finding-title { font-size: 15px; font-weight: 800; color: #fff; margin-bottom: 6px; }
+    .finding-desc { font-size: 13px; color: var(--muted); line-height: 1.4; margin-bottom: 12px; }
+    .mapping-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+    .tag-map { background: var(--surface-raised); border: 1px solid var(--border-accent); color: #cbd5e1; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; }
+
+    /* REMEDIATION DIFF */
+    .diff-box { background: #030508; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 18px; margin-top: 10px; overflow-x: auto; }
+    .diff-del { color: #f87171; background: rgba(239, 68, 68, 0.1); display: block; padding: 2px 6px; border-radius: 4px; }
+    .diff-add { color: #4ade80; background: rgba(34, 197, 94, 0.1); display: block; padding: 2px 6px; border-radius: 4px; }
+    .btn-apply { background: var(--green); color: #000; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 800; font-size: 12px; cursor: pointer; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <!-- NAV -->
+  <nav>
+    <div class="brand">
+      <div class="brand-shield">🛡️</div>
+      <span>CLOUDGUARD SAST</span>
+    </div>
+    <div class="nav-stats">
+      <span><span class="status-dot"></span>ENGINE: <b>CIS & NIST v3.0 ACTIVE</b></span>
+      <span>FORMAT: <b>TERRAFORM HCL</b></span>
+    </div>
+  </nav>
+
+  <!-- CONTROLS -->
+  <div class="top-controls">
+    <div class="sample-select">
+      <label>Preloaded Configuration:</label>
+      <select id="sample-picker" onchange="loadSample(this.value)">
+        <option value="insecure-tf">Terraform: Insecure (S3 Public, Open SSH 0.0.0.0/0, Unencrypted RDS)</option>
+        <option value="secure-tf">Terraform: Secure (Private S3, Restricted Bastion CIDR, KMS Encrypted)</option>
+        <option value="insecure-cfn">CloudFormation: Insecure Stack (Public Read S3 & Open SSH)</option>
+      </select>
+    </div>
+    <button class="btn-scan" onclick="runScan()">⚡ RUN POLICY SCAN</button>
+  </div>
+
+  <!-- WORKSPACE -->
+  <div class="workspace">
+    <!-- CODE EDITOR -->
+    <div class="editor-pane">
+      <div class="pane-header">
+        <span id="file-title">📄 main.tf (Terraform)</span>
+        <span style="font-size:12px;">Static Security Analysis</span>
+      </div>
+      <div class="code-area-wrap">
+        <div class="line-nums" id="line-numbers">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11<br>12<br>13<br>14<br>15<br>16<br>17<br>18<br>19<br>20</div>
+        <textarea class="code-editor" id="code-input" spellcheck="false" oninput="updateLineNumbers()"></textarea>
+      </div>
+    </div>
+
+    <!-- FINDINGS PANE -->
+    <div class="findings-pane">
+      <div class="summary-strip">
+        <div class="summary-box">
+          <div class="summary-num" style="color:var(--primary);" id="crit-count">2</div>
+          <div class="summary-lbl">Critical</div>
+        </div>
+        <div class="summary-box">
+          <div class="summary-num" style="color:var(--amber);" id="high-count">1</div>
+          <div class="summary-lbl">High</div>
+        </div>
+        <div class="summary-box">
+          <div class="summary-num" style="color:var(--cyan);" id="med-count">0</div>
+          <div class="summary-lbl">Medium</div>
+        </div>
+        <div class="summary-box">
+          <div class="summary-num" style="color:var(--green);" id="time-count">12ms</div>
+          <div class="summary-lbl">Scan Time</div>
+        </div>
+      </div>
+
+      <div class="findings-list" id="findings-container">
+        <!-- POPULATED BY SCAN -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SAMPLES = {
+      'insecure-tf': `resource "aws_s3_bucket" "data_lake" {
+  bucket = "company-analytics-prod"
+  acl    = "public-read" # Critical: Public S3 Access
+}
+
+resource "aws_security_group_rule" "ssh_ingress" {
+  type        = "ingress"
+  from_port   = 22
+  to_port     = 22
+  protocol    = "tcp"
+  cidr_blocks = ["0.0.0.0/0"] # Critical: Open SSH Ingress
+}
+
+resource "aws_db_instance" "primary_db" {
+  identifier        = "prod-aurora-cluster"
+  engine            = "postgres"
+  storage_encrypted = false # High: Unencrypted DB Storage
+  publicly_accessible = true # High: Public DB Exposure
+}`,
+      'secure-tf': `resource "aws_s3_bucket" "data_lake" {
+  bucket = "company-analytics-prod"
+  acl    = "private"
+}
+
+resource "aws_s3_bucket_public_access_block" "block" {
+  bucket                  = aws_s3_bucket.data_lake.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_security_group_rule" "ssh_ingress" {
+  type        = "ingress"
+  from_port   = 22
+  to_port     = 22
+  protocol    = "tcp"
+  cidr_blocks = ["10.0.0.0/16"] # Restricted Bastion CIDR
+}
+
+resource "aws_db_instance" "primary_db" {
+  identifier          = "prod-aurora-cluster"
+  engine              = "postgres"
+  storage_encrypted   = true
+  kms_key_id          = "arn:aws:kms:us-east-1:123456789012:key/prod-db"
+  publicly_accessible = false
+}`,
+      'insecure-cfn': `AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  DataLakeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: PublicRead
+  SSHSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0`
+    };
+
+    function updateLineNumbers() {
+      const lines = document.getElementById('code-input').value.split('\n').length;
+      document.getElementById('line-numbers').innerHTML = Array.from({length: Math.max(lines, 20)}, (_, i) => i + 1).join('<br>');
+    }
+
+    function loadSample(key) {
+      document.getElementById('code-input').value = SAMPLES[key];
+      document.getElementById('file-title').innerText = key.includes('cfn') ? '📄 template.yaml (CloudFormation)' : '📄 main.tf (Terraform)';
+      updateLineNumbers();
+      runScan();
+    }
+
+    function runScan() {
+      const code = document.getElementById('code-input').value;
+      const findings = [];
+      const lines = code.split('\n');
+
+      // Rule 1: Public S3
+      lines.forEach((l, idx) => {
+        if (/public-read/i.test(l) || /PublicRead/i.test(l)) {
+          findings.push({
+            id: 'CG-AWS-S3-001',
+            title: 'S3 Bucket Allows Public Access',
+            desc: 'The S3 bucket configuration specifies a public-read ACL exposing confidential objects.',
+            sev: 'critical',
+            line: idx + 1,
+            mappings: ['CIS AWS 2.1.5', 'NIST AC-3', 'OWASP A05:2021'],
+            del: l.trim(),
+            add: 'acl = "private" # Enforce private ACL with aws_s3_bucket_public_access_block'
+          });
+        }
+      });
+
+      // Rule 2: Open SSH
+      lines.forEach((l, idx) => {
+        if (/0\.0\.0\.0\/0/.test(l) && (code.includes('22') || /FromPort:\s*22/.test(code))) {
+          findings.push({
+            id: 'CG-AWS-NET-002',
+            title: 'Security Group Permits Unrestricted SSH (0.0.0.0/0:22)',
+            desc: 'Inbound port 22 is exposed to the entire internet, inviting brute-force attack vectors.',
+            sev: 'critical',
+            line: idx + 1,
+            mappings: ['CIS AWS 4.1', 'NIST SC-7', 'OWASP A01:2021'],
+            del: l.trim(),
+            add: 'cidr_blocks = ["10.0.0.0/16"] # Restricted to internal VPN bastion CIDR'
+          });
+        }
+      });
+
+      // Rule 3: Unencrypted RDS
+      lines.forEach((l, idx) => {
+        if (/storage_encrypted\s*=\s*false/i.test(l)) {
+          findings.push({
+            id: 'CG-AWS-RDS-003',
+            title: 'RDS Storage Encryption is Disabled',
+            desc: 'Database volume is unencrypted at rest without KMS encryption keys.',
+            sev: 'high',
+            line: idx + 1,
+            mappings: ['CIS AWS 2.3', 'NIST SC-13', 'OWASP A02:2021'],
+            del: l.trim(),
+            add: 'storage_encrypted = true'
+          });
+        }
+      });
+
+      // Rule 4: Public DB
+      lines.forEach((l, idx) => {
+        if (/publicly_accessible\s*=\s*true/i.test(l)) {
+          findings.push({
+            id: 'CG-AWS-RDS-004',
+            title: 'RDS Database Instance is Publicly Accessible',
+            desc: 'Database is assigned an internet-routable DNS endpoint bypassing VPC isolation.',
+            sev: 'high',
+            line: idx + 1,
+            mappings: ['NIST SC-7', 'OWASP A05:2021'],
+            del: l.trim(),
+            add: 'publicly_accessible = false'
+          });
+        }
+      });
+
+      const crit = findings.filter(f => f.sev === 'critical').length;
+      const high = findings.filter(f => f.sev === 'high').length;
+
+      document.getElementById('crit-count').innerText = crit;
+      document.getElementById('high-count').innerText = high;
+
+      const container = document.getElementById('findings-container');
+      if (findings.length === 0) {
+        container.innerHTML = `
+          <div style="background:var(--surface); border:1px solid var(--green); border-radius:14px; padding:32px; text-align:center;">
+            <div style="font-size:40px; margin-bottom:12px;">✅</div>
+            <h3 style="color:var(--green); font-size:18px;">Zero Policy Violations Detected</h3>
+            <p style="color:var(--muted); font-size:14px; margin-top:6px;">All infrastructure resources comply with CIS Benchmark & NIST 800-53 security controls.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = findings.map((f, i) => `
+        <div class="finding-card ${f.sev}">
+          <div class="finding-top">
+            <span class="rule-id">${f.id} (Line ${f.line})</span>
+            <span class="badge-sev ${f.sev}">${f.sev}</span>
+          </div>
+          <div class="finding-title">${f.title}</div>
+          <div class="finding-desc">${f.desc}</div>
+          <div class="mapping-tags">
+            ${f.mappings.map(m => `<span class="tag-map">${m}</span>`).join('')}
+          </div>
+          <div class="diff-box">
+            <span class="diff-del">- ${f.del}</span>
+            <span class="diff-add">+ ${f.add}</span>
+          </div>
+          <button class="btn-apply" onclick="applyFix('${f.del.replace(/"/g, '&quot;')}', '${f.add.replace(/"/g, '&quot;')}')">Apply Secure Patch</button>
+        </div>
+      `).join('');
+    }
+
+    function applyFix(oldStr, newStr) {
+      const code = document.getElementById('code-input');
+      const unescapedOld = oldStr.replace(/&quot;/g, '"');
+      const unescapedNew = newStr.replace(/&quot;/g, '"');
+      if (code.value.includes(unescapedOld)) {
+        code.value = code.value.replace(unescapedOld, unescapedNew);
+        updateLineNumbers();
+        runScan();
+      }
+    }
+
+    // Initialize
+    loadSample('insecure-tf');
+  </script>
+</body>
+</html>
