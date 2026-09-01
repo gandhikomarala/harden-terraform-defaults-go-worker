@@ -47,10 +47,10 @@ resource "aws_db_instance" "primary_db" {
 """
 
 def test_secret_redaction():
-    raw_code = 'aws_access_key = "AKIA1234567890ABCDEF"'
+    raw_code = 'aws_access_key = "EXAMPLE_AWS_KEY_PLACEHOLDER"'
     sanitized = SecurityScannerEngine.redact_secrets(raw_code)
     assert "[REDACTED_AWS_KEY]" in sanitized
-    assert "AKIA1234567890ABCDEF" not in sanitized
+    assert "EXAMPLE_AWS_KEY_PLACEHOLDER" not in sanitized
 
 def test_insecure_scan_detects_all_vulnerabilities():
     res = SecurityScannerEngine.scan(SAMPLE_INSECURE_TF, "insecure.tf", "terraform")
