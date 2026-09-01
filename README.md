@@ -17,7 +17,7 @@ CloudGuard SAST — Static Security Analysis for Infrastructure-as-Code is a pro
 
 ### 1. Set Up Python Virtual Environment
 ```bash
-git clone gandhikomarala/harden-terraform-defaults-go-worker.git
+git clone git@github.com:gandhikomarala/harden-terraform-defaults-go-worker.git
 cd compliance_repo
 python -m venv venv
 # Windows:
