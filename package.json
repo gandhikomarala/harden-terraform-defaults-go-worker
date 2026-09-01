@@ -1,0 +1,8 @@
+{
+  "name": "compliance_repo",
+  "version": "2.4.0",
+  "scripts": {
+    "test": "pytest tests/",
+    "build": "docker build -t compliance_repo ."
+  }
+}

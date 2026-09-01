@@ -1,0 +1,11 @@
+# Poetry lockfile
+[[package]]
+name = "fastapi"
+version = "0.111.0"
+optional = false
+python-versions = ">=3.8"
+
+[metadata]
+lock-version = "2.0"
+python-versions = ">=3.10"
+content-hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
